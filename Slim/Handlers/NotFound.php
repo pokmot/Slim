@@ -34,19 +34,81 @@ class NotFound
         $contentType = $this->determineContentType($request->getHeaderLine('Accept'));
         switch ($contentType) {
             case 'application/json':
-                $output = '{"message":"Not found"}';
+                $output = $this->renderJsonNotFoundMessage($request);
                 break;
 
             case 'text/xml':
             case 'application/xml':
-                $output = '<root><message>Not found</message></root>';
+                $output = $this->renderXmlNotFoundMessage($request);
                 break;
 
             case 'text/html':
             default:
-                $homeUrl = (string)($request->getUri()->withPath('')->withQuery('')->withFragment(''));
-                $contentType = 'text/html';
-                $output = <<<END
+                $output = $this->renderHtmlNotFoundMessage($request);
+                break;
+        }
+
+        $body = new Body(fopen('php://temp', 'r+'));
+        $body->write($output);
+
+        return $response->withStatus(404)
+                        ->withHeader('Content-Type', $contentType)
+                        ->withBody($body);
+    }
+
+    /**
+     * Read the accept header and determine which content type we know about
+     * is wanted.
+     *
+     * @param  string $acceptHeader Accept header from request
+     * @return string
+     */
+    private function determineContentType($acceptHeader)
+    {
+        $list = explode(',', $acceptHeader);
+        $known = ['application/json', 'application/xml', 'text/xml', 'text/html'];
+
+        foreach ($list as $type) {
+            if (in_array($type, $known)) {
+                return $type;
+            }
+        }
+
+        return 'text/html';
+    }
+
+    /**
+     * Render JSON not allowed message
+     *
+     * @param  ServerRequestInterface $request
+     * @return string
+     */
+    protected function renderJsonNotFoundMessage($request)
+    {
+        return '{"message":"Not found"}';
+    }
+
+    /**
+     * Render XML not allowed message
+     *
+     * @param  ServerRequestInterface $request
+     * @return string
+     */
+    protected function renderXmlNotFoundMessage($request)
+    {
+        return '<root><message>Not found</message></root>';
+    }
+
+    /**
+     * Render HTML not allowed message
+     *
+     * @param  ServerRequestInterface $request
+     * @return string
+     */
+    protected function renderHtmlNotFoundMessage($request)
+    {
+        $homeUrl = (string)($request->getUri()->withPath('')->withQuery('')->withFragment(''));
+        $output = <<<END
 <html>
     <head>
         <title>Page Not Found</title>
@@ -79,35 +141,7 @@ class NotFound
     </body>
 </html>
 END;
-                break;
-        }
 
-        $body = new Body(fopen('php://temp', 'r+'));
-        $body->write($output);
-
-        return $response->withStatus(404)
-                        ->withHeader('Content-Type', $contentType)
-                        ->withBody($body);
-    }
-
-    /**
-     * Read the accept header and determine which content type we know about
-     * is wanted.
-     *
-     * @param  string $acceptHeader Accept header from request
-     * @return string
-     */
-    private function determineContentType($acceptHeader)
-    {
-        $list = explode(',', $acceptHeader);
-        $known = ['application/json', 'application/xml', 'text/xml', 'text/html'];
-        
-        foreach ($list as $type) {
-            if (in_array($type, $known)) {
-                return $type;
-            }
-        }
-
-        return 'text/html';
+        return $output;
     }
 }
